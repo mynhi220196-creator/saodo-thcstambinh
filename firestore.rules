@@ -1,0 +1,223 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function callerProfile() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        && callerProfile().role == 'ADMIN'
+        && callerProfile().is_active != false
+        && callerProfile().is_deleted != true;
+    }
+
+    function teacherRole(r) {
+      return r == 'TEACHER' || r == 'TEACHER_SUBJECT' || r == 'TEACHER_HOMEROOM';
+    }
+
+    function isActiveTeacher() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        && teacherRole(callerProfile().role)
+        && callerProfile().is_active != false
+        && callerProfile().is_deleted != true;
+    }
+
+    function isActiveRedStar() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        && callerProfile().role == 'RED_STAR'
+        && callerProfile().is_active != false
+        && callerProfile().is_deleted != true;
+    }
+
+    /** Quản trị, GV hoặc Đội Sao Đỏ: đọc lớp/HS/tiêu chí và ghi bản ghi tác phong (theo recorded_by). */
+    function canRecordConduct() {
+      return isAdmin() || isActiveTeacher() || isActiveRedStar();
+    }
+
+    /** Đội Sao Đỏ chỉ được tạo bản ghi vi phạm (trừ điểm), không ghi khen. */
+    function redStarConductCreateOk() {
+      return !isActiveRedStar() || request.resource.data.type == 'penalty';
+    }
+
+    function studentDocClassId(studentId) {
+      return get(/databases/$(database)/documents/students/$(studentId)).data.class_id;
+    }
+
+    function classDocSchoolYear(classId) {
+      return get(/databases/$(database)/documents/classes/$(classId)).data.school_year;
+    }
+
+    /** GVCN được xem mọi bản ghi tác phong của lớp mình chủ nhiệm. */
+    function isHomeroomTeacherOfClass(classId) {
+      return isActiveTeacher()
+        && classId is string
+        && classId.size() > 0
+        && exists(/databases/$(database)/documents/classes/$(classId))
+        && get(/databases/$(database)/documents/classes/$(classId)).data.homeroom_teacher_id == request.auth.uid;
+    }
+
+    function isCloudinaryHttpsUrl(url) {
+      return url is string
+        && url.size() >= 28
+        && url.size() <= 2048
+        && url.matches('^https://res\\.cloudinary\\.com/.+');
+    }
+
+    /** Tối đa 5 URL minh chứng; mỗi URL phải là https res.cloudinary.com (upload client). */
+    function conductImageUrlsFieldOk() {
+      let urls = request.resource.data.get('image_urls', []);
+      return urls is list
+        && urls.size() <= 5
+        && conductImageUrlsListItemsOk(urls);
+    }
+
+    function conductImageUrlsListItemsOk(u) {
+      let n = u.size();
+      return (n == 0)
+        || (n == 1 && isCloudinaryHttpsUrl(u[0]))
+        || (n == 2 && isCloudinaryHttpsUrl(u[0]) && isCloudinaryHttpsUrl(u[1]))
+        || (n == 3 && isCloudinaryHttpsUrl(u[0]) && isCloudinaryHttpsUrl(u[1]) && isCloudinaryHttpsUrl(u[2]))
+        || (n == 4 && isCloudinaryHttpsUrl(u[0]) && isCloudinaryHttpsUrl(u[1]) && isCloudinaryHttpsUrl(u[2]) && isCloudinaryHttpsUrl(u[3]))
+        || (n == 5 && isCloudinaryHttpsUrl(u[0]) && isCloudinaryHttpsUrl(u[1]) && isCloudinaryHttpsUrl(u[2]) && isCloudinaryHttpsUrl(u[3]) && isCloudinaryHttpsUrl(u[4]));
+    }
+
+    /** Admin chỉ được sửa cờ xử lý nghiêm (không sửa điểm / HS / tiêu chí qua client). */
+    function conductAdminFlagPatchOnly() {
+      let aff = request.resource.data.diff(resource.data).affectedKeys();
+      return aff.hasOnly(['admin_flagged', 'admin_flagged_at'])
+        && request.resource.data.admin_flagged is bool
+        && (
+          request.resource.data.admin_flagged == false
+          || request.resource.data.admin_flagged_at is timestamp
+        );
+    }
+
+    match /profiles/{userId} {
+      allow read: if request.auth != null
+        && (request.auth.uid == userId || isAdmin());
+
+      allow create: if isAdmin();
+
+      allow update: if isAdmin()
+        && (
+          userId != request.auth.uid
+          || (
+            request.resource.data.role == resource.data.role
+            && request.resource.data.is_deleted == resource.data.is_deleted
+            && request.resource.data.is_active == resource.data.is_active
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    /* GV đọc mọi lớp / HS để chọn lớp dạy và ghi tác phong (cùng trường). */
+    match /classes/{classId} {
+      allow read: if isAdmin() || canRecordConduct();
+      allow write: if isAdmin();
+    }
+
+    match /students/{studentId} {
+      allow read: if isAdmin() || canRecordConduct();
+      allow write: if isAdmin();
+    }
+
+    match /conduct_criteria/{criterionId} {
+      allow read: if isAdmin() || canRecordConduct();
+      allow write: if isAdmin();
+    }
+
+    match /conduct_score_records/{recordId} {
+      allow read: if isAdmin()
+        || (canRecordConduct() && resource.data.recorded_by == request.auth.uid)
+        || isHomeroomTeacherOfClass(resource.data.class_id);
+
+      allow create: if canRecordConduct()
+        && request.resource.data.recorded_by == request.auth.uid
+        && !request.resource.data.keys().hasAny(['admin_flagged', 'admin_flagged_at'])
+        && request.resource.data.keys().hasAll([
+          'student_id', 'class_id', 'school_year', 'criterion_id', 'type', 'points', 'recorded_by'
+        ])
+        && request.resource.data.student_id is string
+        && request.resource.data.class_id is string
+        && request.resource.data.school_year is string
+        && request.resource.data.criterion_id is string
+        && request.resource.data.type in ['reward', 'penalty']
+        && request.resource.data.points is number
+        && conductImageUrlsFieldOk()
+        && exists(/databases/$(database)/documents/students/$(request.resource.data.student_id))
+        && studentDocClassId(request.resource.data.student_id) == request.resource.data.class_id
+        && exists(/databases/$(database)/documents/classes/$(request.resource.data.class_id))
+        && classDocSchoolYear(request.resource.data.class_id) == request.resource.data.school_year
+        && redStarConductCreateOk();
+
+      allow update: if isAdmin();
+
+      /**
+       * Xóa: quản trị mọi lúc.
+       * Người ghi: GV không xóa khi admin_flagged; Sao Đỏ (RED_STAR) xóa được cả khi đã cờ.
+       */
+      allow delete: if isAdmin()
+        || (
+          canRecordConduct()
+          && resource.data.recorded_by == request.auth.uid
+          && (
+            isActiveRedStar()
+            || resource.data.get('admin_flagged', false) == false
+          )
+        );
+    }
+
+    /* Điểm tác phong của lớp (một bản ghi / lần — không gắn từng học sinh). */
+    match /conduct_class_records/{recordId} {
+      allow read: if isAdmin()
+        || (canRecordConduct() && resource.data.recorded_by == request.auth.uid)
+        || isHomeroomTeacherOfClass(resource.data.class_id);
+
+      allow create: if canRecordConduct()
+        && request.resource.data.recorded_by == request.auth.uid
+        && !request.resource.data.keys().hasAny(['admin_flagged', 'admin_flagged_at'])
+        && request.resource.data.keys().hasAll([
+          'class_id', 'school_year', 'criterion_id', 'type', 'points', 'recorded_by'
+        ])
+        && request.resource.data.class_id is string
+        && request.resource.data.school_year is string
+        && request.resource.data.criterion_id is string
+        && request.resource.data.type in ['reward', 'penalty']
+        && request.resource.data.points is number
+        && conductImageUrlsFieldOk()
+        && exists(/databases/$(database)/documents/classes/$(request.resource.data.class_id))
+        && classDocSchoolYear(request.resource.data.class_id) == request.resource.data.school_year
+        && redStarConductCreateOk();
+
+      allow update: if isAdmin() && conductAdminFlagPatchOnly();
+
+      allow delete: if isAdmin()
+        || (
+          canRecordConduct()
+          && resource.data.recorded_by == request.auth.uid
+          && (
+            isActiveRedStar()
+            || resource.data.get('admin_flagged', false) == false
+          )
+        );
+    }
+
+    match /duty_assignments/{assignmentId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /duty_zones/{zoneId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
