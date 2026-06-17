@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
 import ConductImageLightbox, { ConductRecordImageStrip } from '../../components/ConductImageLightbox.jsx'
+import QrScannerModal from '../../components/QrScannerModal.jsx'
 import SaoDoShell from '../../components/layout/SaoDoShell.jsx'
 import TeacherShell from '../../components/layout/TeacherShell.jsx'
 import { buildSchoolYearOptions, currentSchoolYearValue } from '../../lib/academicYearOptions.js'
@@ -11,10 +12,13 @@ import {
   subscribeConductClassRecordsByTeacher,
 } from '../../lib/conductClassRecordsFirestore.js'
 import {
+  RED_STAR_EDIT_WINDOW_MIN,
+  canRedStarStillDelete,
   deleteConductScoreRecord,
   subscribeConductRecordsByTeacher,
 } from '../../lib/conductScoreRecordsFirestore.js'
 import { subscribeClassesForSchoolYear, subscribeStudentsByClassId } from '../../lib/organizationFirestore.js'
+import { lookupStudentByQr } from '../../lib/studentQr.js'
 import { formatDateTimeVN } from '../../lib/dateFormat.js'
 import TeacherConductRecordModal from './TeacherConductRecordModal.jsx'
 import PortalTablePagination from './PortalTablePagination.jsx'
@@ -118,6 +122,10 @@ export default function TeacherConductPage({ variant = 'teacher' }) {
 
   const [modalStudent, setModalStudent] = useState(null)
   const [classModalOpen, setClassModalOpen] = useState(false)
+  /** Quét QR: bật camera, và đích ghi nhận lấy từ kết quả quét (độc lập với lớp đang chọn). */
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const [scanLookupBusy, setScanLookupBusy] = useState(false)
+  const [scanTarget, setScanTarget] = useState(null)
   /** Cá nhân: ghi từng em. Cả lớp: một hạng mục cho toàn lớp. */
   const [conductTarget, setConductTarget] = useState('individual')
   /** Tab cấp trang: danh sách HS vs bản ghi gần đây (lớp đang chọn). */
@@ -342,10 +350,40 @@ export default function TeacherConductPage({ variant = 'teacher' }) {
     window.setTimeout(() => setToast(''), 4000)
   }
 
+  /** Sau khi quét QR: tra học sinh + lớp rồi mở thẳng modal ghi nhận. */
+  const handleQrResult = useCallback(async (decodedText) => {
+    setScannerOpen(false)
+    setScanLookupBusy(true)
+    try {
+      const { student, classMeta } = await lookupStudentByQr(decodedText)
+      setScanTarget({
+        student,
+        classMeta,
+        schoolYear: classMeta?.school_year ?? '',
+      })
+    } catch (e) {
+      setToast(e?.message ?? 'Không nhận diện được mã QR.')
+      window.setTimeout(() => setToast(''), 4500)
+    } finally {
+      setScanLookupBusy(false)
+    }
+  }, [])
+
   const handleDeleteRecentRow = useCallback(
     async (row) => {
       if (!isSaoDo && row?.r?.admin_flagged) return
       if (row?.r?.recorded_by && row.r.recorded_by !== teacherUid) return
+      // Sao Đỏ: chỉ được tự xóa bản ghi cá nhân trong cửa sổ thời gian; quá hạn → chỉ Admin.
+      if (isSaoDo && row.kind === 'individual' && !canRedStarStillDelete(row.r)) {
+        const reason =
+          row.r.dispute_status && row.r.dispute_status !== 'none'
+            ? 'Bản ghi đang/đã bị khiếu nại nên chỉ Ban giám hiệu mới được xử lý.'
+            : row.r.admin_flagged
+              ? 'Bản ghi đã bị Ban giám hiệu gắn cờ xử lý.'
+              : `Đã quá ${RED_STAR_EDIT_WINDOW_MIN} phút kể từ khi ghi. Vui lòng báo Ban giám hiệu nếu cần chỉnh sửa.`
+        window.alert(`Không thể xóa: ${reason}`)
+        return
+      }
       if (!window.confirm('Xóa bản ghi này? Thao tác không thể hoàn tác.')) return
       const id = row.r.id
       setDeleteBusyId(id)
@@ -424,6 +462,15 @@ export default function TeacherConductPage({ variant = 'teacher' }) {
               ))}
             </select>
           </div>
+          <button
+            type="button"
+            onClick={() => setScannerOpen(true)}
+            disabled={scanLookupBusy}
+            className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm shrink-0 disabled:opacity-60 ${pt.btnGhi}`}
+          >
+            <span className="material-symbols-outlined text-lg">qr_code_scanner</span>
+            {scanLookupBusy ? 'Đang tra cứu…' : 'Quét QR'}
+          </button>
           {!isSaoDo ? (
             <Link
               to="/giao-vien/lop-hoc"
@@ -808,6 +855,27 @@ export default function TeacherConductPage({ variant = 'teacher' }) {
           onClose={() => setClassModalOpen(false)}
           classMeta={selectedClass}
           schoolYear={schoolYear}
+          criteria={criteria}
+          teacherUid={teacherUid}
+          teacherName={recorderDisplayName}
+          onRecorded={handleRecorded}
+          penaltiesOnly={isSaoDo}
+        />
+
+        <QrScannerModal
+          open={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onResult={handleQrResult}
+          accent={isSaoDo ? 'red' : 'emerald'}
+        />
+
+        <TeacherConductRecordModal
+          mode="individual"
+          open={scanTarget != null}
+          onClose={() => setScanTarget(null)}
+          student={scanTarget?.student ?? null}
+          classMeta={scanTarget?.classMeta ?? null}
+          schoolYear={scanTarget?.schoolYear ?? schoolYear}
           criteria={criteria}
           teacherUid={teacherUid}
           teacherName={recorderDisplayName}

@@ -4,6 +4,7 @@ import { subscribeAllConductClassRecords } from '../../lib/conductClassRecordsFi
 import { subscribeAllConductScoreRecords } from '../../lib/conductScoreRecordsFirestore.js'
 import { buildDashboardAggregates } from './adminDashboardAggregates.js'
 import DashboardAnalyticsPanels from './DashboardAnalyticsPanels.jsx'
+import AdminWeeklyHonorPanel from './AdminWeeklyHonorPanel.jsx'
 import { rangeForPreset } from './dashboardPresets.js'
 
 export default function AdminDashboardPage() {
@@ -111,6 +112,8 @@ export default function AdminDashboardPage() {
           loadError={loadError}
           showClassRewardLeaderboard
         />
+
+        <AdminWeeklyHonorPanel scoreRaw={scoreRaw} classRaw={classRaw} />
       </div>
     </AdminShell>
   )

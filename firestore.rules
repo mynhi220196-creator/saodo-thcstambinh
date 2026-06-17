@@ -97,6 +97,29 @@ service cloud.firestore {
         );
     }
 
+    /**
+     * GVCN gửi khiếu nại một bản ghi tác phong của lớp mình:
+     * chỉ được đặt các field dispute_*, chỉ khi chưa có khiếu nại mở,
+     * và phải kèm lý do.
+     */
+    function conductDisputeRaiseOk() {
+      let aff = request.resource.data.diff(resource.data).affectedKeys();
+      return aff.hasOnly(['dispute_status', 'disputed_by', 'disputed_by_name', 'dispute_reason', 'disputed_at'])
+        && resource.data.get('dispute_status', 'none') == 'none'
+        && request.resource.data.dispute_status == 'open'
+        && request.resource.data.disputed_by == request.auth.uid
+        && request.resource.data.disputed_at is timestamp
+        && request.resource.data.dispute_reason is string
+        && request.resource.data.dispute_reason.size() > 0
+        && request.resource.data.dispute_reason.size() <= 1000;
+    }
+
+    /** Cửa sổ Sao Đỏ tự xóa bản ghi sau khi tạo (phút). */
+    function redStarDeleteWindowOk() {
+      return resource.data.created_at is timestamp
+        && request.time < resource.data.created_at + duration.value(15, 'm');
+    }
+
     match /profiles/{userId} {
       allow read: if request.auth != null
         && (request.auth.uid == userId || isAdmin());
@@ -139,7 +162,11 @@ service cloud.firestore {
 
       allow create: if canRecordConduct()
         && request.resource.data.recorded_by == request.auth.uid
-        && !request.resource.data.keys().hasAny(['admin_flagged', 'admin_flagged_at'])
+        && !request.resource.data.keys().hasAny([
+          'admin_flagged', 'admin_flagged_at',
+          'dispute_status', 'disputed_by', 'disputed_by_name', 'dispute_reason', 'disputed_at',
+          'dispute_resolved_by', 'dispute_resolved_at', 'dispute_resolution_note'
+        ])
         && request.resource.data.keys().hasAll([
           'student_id', 'class_id', 'school_year', 'criterion_id', 'type', 'points', 'recorded_by'
         ])
@@ -156,20 +183,35 @@ service cloud.firestore {
         && classDocSchoolYear(request.resource.data.class_id) == request.resource.data.school_year
         && redStarConductCreateOk();
 
-      allow update: if isAdmin();
+      /**
+       * Sửa: Admin toàn quyền (phân xử khiếu nại, gắn cờ…).
+       * GVCN của lớp: chỉ được GỬI khiếu nại (đặt field dispute_*), không sửa điểm/tiêu chí.
+       */
+      allow update: if isAdmin()
+        || (
+          isHomeroomTeacherOfClass(resource.data.class_id)
+          && conductDisputeRaiseOk()
+        );
 
       /**
-       * Xóa: quản trị mọi lúc.
-       * Người ghi: GV không xóa khi admin_flagged; Sao Đỏ (RED_STAR) xóa được cả khi đã cờ.
+       * Xóa:
+       *  - Admin: mọi lúc (kể cả phân xử «chấp nhận khiếu nại» = xóa điểm trừ).
+       *  - GV (người ghi): khi chưa bị admin gắn cờ.
+       *  - Sao Đỏ (người ghi): chỉ trong 15 phút sau khi tạo, chưa bị cờ, và chưa bị khiếu nại.
+       *    Quá hạn hoặc khi có khiếu nại → chỉ Admin can thiệp (tránh bị nể nang/ép xóa).
        */
       allow delete: if isAdmin()
         || (
-          canRecordConduct()
+          isActiveTeacher()
           && resource.data.recorded_by == request.auth.uid
-          && (
-            isActiveRedStar()
-            || resource.data.get('admin_flagged', false) == false
-          )
+          && resource.data.get('admin_flagged', false) == false
+        )
+        || (
+          isActiveRedStar()
+          && resource.data.recorded_by == request.auth.uid
+          && resource.data.get('admin_flagged', false) == false
+          && resource.data.get('dispute_status', 'none') == 'none'
+          && redStarDeleteWindowOk()
         );
     }
 
@@ -206,6 +248,21 @@ service cloud.firestore {
             || resource.data.get('admin_flagged', false) == false
           )
         );
+    }
+
+    /* Mức huy hiệu / rank thi đua (Gamification). Admin cấu hình; toàn bộ nhân sự đọc để hiển thị badge. */
+    match /conduct_ranks/{rankId} {
+      allow read: if isAdmin() || canRecordConduct();
+      allow write: if isAdmin();
+    }
+
+    /**
+     * BXH tuần đã công bố (snapshot). Chỉ chứa số liệu tổng hợp theo lớp (điểm final + rank),
+     * không có dữ liệu thô — nên mọi nhân sự đăng nhập đều đọc được; chỉ Admin công bố/sửa.
+     */
+    match /weekly_rankings/{weekKey} {
+      allow read: if isAdmin() || canRecordConduct();
+      allow write: if isAdmin();
     }
 
     match /duty_assignments/{assignmentId} {

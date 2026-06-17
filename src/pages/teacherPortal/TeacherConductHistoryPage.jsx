@@ -8,6 +8,8 @@ import {
   subscribeConductClassRecordsByTeacher,
 } from '../../lib/conductClassRecordsFirestore.js'
 import {
+  RED_STAR_EDIT_WINDOW_MIN,
+  canRedStarStillDelete,
   deleteConductScoreRecord,
   subscribeConductRecordsByTeacher,
 } from '../../lib/conductScoreRecordsFirestore.js'
@@ -220,6 +222,17 @@ export default function TeacherConductHistoryPage({ variant = 'teacher' }) {
     async (row) => {
       if (!isSaoDo && row?.r?.admin_flagged) return
       if (row?.r?.recorded_by && row.r.recorded_by !== uid) return
+      // Sao Đỏ: chỉ tự xóa bản ghi tác phong (conduct_score_records) trong cửa sổ thời gian.
+      if (isSaoDo && row.kind !== 'class_level' && !canRedStarStillDelete(row.r)) {
+        const reason =
+          row.r.dispute_status && row.r.dispute_status !== 'none'
+            ? 'Bản ghi đang/đã bị khiếu nại nên chỉ Ban giám hiệu mới được xử lý.'
+            : row.r.admin_flagged
+              ? 'Bản ghi đã bị Ban giám hiệu gắn cờ xử lý.'
+              : `Đã quá ${RED_STAR_EDIT_WINDOW_MIN} phút kể từ khi ghi. Vui lòng báo Ban giám hiệu nếu cần chỉnh sửa.`
+        window.alert(`Không thể xóa: ${reason}`)
+        return
+      }
       if (!window.confirm('Xóa bản ghi này? Thao tác không thể hoàn tác.')) return
       const id = row.r.id
       setDeleteBusyId(id)

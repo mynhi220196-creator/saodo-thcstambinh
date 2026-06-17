@@ -14,11 +14,28 @@ import { db } from './firebaseClient.js'
 
 const COL = 'conduct_score_records'
 
+/** Cửa sổ (phút) Sao Đỏ được tự sửa/xóa bản ghi sau khi tạo. Khớp firestore.rules. */
+export const RED_STAR_EDIT_WINDOW_MIN = 15
+
 function toMillis(v) {
   if (!v) return 0
   if (typeof v.toMillis === 'function') return v.toMillis()
   if (v.seconds != null) return v.seconds * 1000
   return 0
+}
+
+/**
+ * Sao Đỏ còn được tự xóa bản ghi này không?
+ * Đúng khi: chưa bị admin gắn cờ, chưa bị khiếu nại, và còn trong cửa sổ phút kể từ created_at.
+ * (Server vẫn là nơi chốt cuối qua firestore.rules; đây chỉ để phản ánh trên giao diện.)
+ */
+export function canRedStarStillDelete(record, nowMs = Date.now()) {
+  if (!record) return false
+  if (record.admin_flagged === true) return false
+  if (record.dispute_status && record.dispute_status !== 'none') return false
+  const created = Number(record._createdMs) || 0
+  if (!created) return false
+  return nowMs - created < RED_STAR_EDIT_WINDOW_MIN * 60 * 1000
 }
 
 export function snapshotToConductRecord(s) {
@@ -44,6 +61,14 @@ export function snapshotToConductRecord(s) {
     image_urls: Array.isArray(d.image_urls) ? d.image_urls.filter((u) => typeof u === 'string') : [],
     admin_flagged: d.admin_flagged === true,
     _admin_flagged_ms: toMillis(d.admin_flagged_at),
+    dispute_status: d.dispute_status ?? 'none',
+    disputed_by: d.disputed_by ?? '',
+    disputed_by_name: d.disputed_by_name ?? '',
+    dispute_reason: d.dispute_reason ?? '',
+    _disputed_ms: toMillis(d.disputed_at),
+    dispute_resolved_by: d.dispute_resolved_by ?? '',
+    dispute_resolution_note: d.dispute_resolution_note ?? '',
+    _dispute_resolved_ms: toMillis(d.dispute_resolved_at),
     _createdMs: toMillis(d.created_at),
   }
 }
@@ -189,4 +214,40 @@ export async function setConductScoreAdminFlagged(recordId, flagged) {
       admin_flagged_at: deleteField(),
     })
   }
+}
+
+/**
+ * GVCN gửi khiếu nại một bản ghi điểm trừ (vd: ảnh minh chứng chưa rõ).
+ * Chỉ đặt các field dispute_* (khớp firestore.rules: conductDisputeRaiseOk).
+ */
+export async function raiseConductDispute(recordId, { reason, disputed_by, disputed_by_name }) {
+  if (!db) throw new Error('Firestore chưa khởi tạo.')
+  const id = String(recordId ?? '').trim()
+  if (!id) throw new Error('Thiếu mã bản ghi.')
+  const r = String(reason ?? '').trim()
+  if (!r) throw new Error('Vui lòng nhập lý do khiếu nại.')
+  if (r.length > 1000) throw new Error('Lý do khiếu nại quá dài (tối đa 1000 ký tự).')
+  await updateDoc(doc(db, COL, id), {
+    dispute_status: 'open',
+    disputed_by: String(disputed_by ?? '').trim(),
+    disputed_by_name: String(disputed_by_name ?? '').trim(),
+    dispute_reason: r,
+    disputed_at: serverTimestamp(),
+  })
+}
+
+/**
+ * Admin BÁC khiếu nại: giữ nguyên điểm, đánh dấu đã xử lý.
+ * (CHẤP NHẬN khiếu nại = xóa bản ghi điểm trừ → dùng deleteConductScoreRecord.)
+ */
+export async function rejectConductDispute(recordId, { resolved_by, note } = {}) {
+  if (!db) throw new Error('Firestore chưa khởi tạo.')
+  const id = String(recordId ?? '').trim()
+  if (!id) throw new Error('Thiếu mã bản ghi.')
+  await updateDoc(doc(db, COL, id), {
+    dispute_status: 'rejected',
+    dispute_resolved_by: String(resolved_by ?? '').trim(),
+    dispute_resolved_at: serverTimestamp(),
+    dispute_resolution_note: String(note ?? '').trim(),
+  })
 }

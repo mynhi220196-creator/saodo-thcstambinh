@@ -8,9 +8,11 @@ import {
 } from '../../lib/conductClassRecordsFirestore.js'
 import {
   deleteConductScoreRecord,
+  rejectConductDispute,
   setConductScoreAdminFlagged,
   subscribeAllConductScoreRecords,
 } from '../../lib/conductScoreRecordsFirestore.js'
+import { useAuth } from '../../auth/useAuth.js'
 import {
   mapConductClassRecordForAdmin,
   mapConductScoreRecordForAdmin,
@@ -41,6 +43,7 @@ function parseConductRowKey(rowKey) {
 }
 
 export default function ScoreRecordsPage() {
+  const { user } = useAuth()
   const [scoreRaw, setScoreRaw] = useState([])
   const [classRaw, setClassRaw] = useState([])
   const [classesRaw, setClassesRaw] = useState([])
@@ -194,6 +197,12 @@ export default function ScoreRecordsPage() {
 
   const stats = useMemo(() => summarizeRecords(visible), [visible])
 
+  /** Số khiếu nại đang chờ phân xử (toàn bộ, không phụ thuộc bộ lọc). */
+  const openDisputeCount = useMemo(
+    () => mergedBase.filter((r) => r.disputeStatus === 'open').length,
+    [mergedBase],
+  )
+
   const showBanner = useCallback((kind, message) => {
     setActionBanner({ kind, message })
     if (message) window.setTimeout(() => setActionBanner({ kind: '', message: '' }), 5000)
@@ -279,6 +288,49 @@ export default function ScoreRecordsPage() {
     [showBanner],
   )
 
+  /** Phân xử khiếu nại — CHẤP NHẬN: xóa bản ghi điểm trừ (trả lại công bằng cho học sinh). */
+  const onAcceptDispute = useCallback(
+    async (rowKey) => {
+      const p = parseConductRowKey(rowKey)
+      if (!p || p.kind !== 'score') return
+      if (!window.confirm('Chấp nhận khiếu nại và XÓA điểm trừ này? Thao tác không thể hoàn tác.')) return
+      setAdminActionBusy(true)
+      setActionBanner({ kind: '', message: '' })
+      try {
+        await deleteConductScoreRecord(p.id)
+        showBanner('ok', 'Đã chấp nhận khiếu nại và xóa điểm trừ.')
+      } catch (e) {
+        showBanner('err', e?.message ?? 'Không xử lý được. Kiểm tra quyền ADMIN và rules.')
+      } finally {
+        setAdminActionBusy(false)
+      }
+    },
+    [showBanner],
+  )
+
+  /** Phân xử khiếu nại — BÁC: giữ nguyên điểm, đánh dấu đã xử lý. */
+  const onRejectDispute = useCallback(
+    async (rowKey) => {
+      const p = parseConductRowKey(rowKey)
+      if (!p || p.kind !== 'score') return
+      const note = window.prompt('Bác khiếu nại — ghi chú lý do (tuỳ chọn):', '') ?? ''
+      setAdminActionBusy(true)
+      setActionBanner({ kind: '', message: '' })
+      try {
+        await rejectConductDispute(p.id, {
+          resolved_by: user?.id ?? '',
+          note,
+        })
+        showBanner('ok', 'Đã bác khiếu nại, giữ nguyên điểm.')
+      } catch (e) {
+        showBanner('err', e?.message ?? 'Không xử lý được. Kiểm tra quyền ADMIN và rules.')
+      } finally {
+        setAdminActionBusy(false)
+      }
+    },
+    [showBanner, user?.id],
+  )
+
   return (
     <AdminShell
       activeKey="ban-ghi-diem"
@@ -310,6 +362,13 @@ export default function ScoreRecordsPage() {
           }`}
         >
           {actionBanner.message}
+        </p>
+      ) : null}
+
+      {openDisputeCount > 0 ? (
+        <p className="text-sm font-bold rounded-xl px-4 py-3 mb-4 flex items-center gap-2 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100 border border-amber-200 dark:border-amber-900">
+          <span className="material-symbols-outlined text-lg">gavel</span>
+          Có {openDisputeCount} khiếu nại từ GVCN đang chờ phân xử. Tìm dòng có nhãn «GVCN khiếu nại» để xử lý.
         </p>
       ) : null}
 
@@ -348,6 +407,8 @@ export default function ScoreRecordsPage() {
           onFlag={onFlag}
           onClearAdminFlag={onClearAdminFlag}
           onDeleteRecord={onDeleteRecord}
+          onAcceptDispute={onAcceptDispute}
+          onRejectDispute={onRejectDispute}
           onOpenConductImages={openConductImages}
           actionsDisabled={adminActionBusy}
         />

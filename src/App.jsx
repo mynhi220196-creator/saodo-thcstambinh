@@ -7,6 +7,8 @@ import AdminSchedule from './pages/AdminSchedule.jsx'
 import AdminAccountPage from './pages/account/AdminAccountPage.jsx'
 import UpdatePasswordPage from './pages/auth/UpdatePasswordPage.jsx'
 import Login from './pages/Login.jsx'
+import RankConfigPage from './pages/ranks/RankConfigPage.jsx'
+import HonorBoardPage from './pages/honor/HonorBoardPage.jsx'
 import ConductConfigPage from './pages/conductConfig/ConductConfigPage.jsx'
 import ClassDetailPage from './pages/classes/ClassDetailPage.jsx'
 import ClassManagementPage from './pages/classes/ClassManagementPage.jsx'
@@ -33,12 +35,14 @@ export default function App() {
       <Route path="/" element={<Login />} />
       <Route path="/auth/update-password" element={<UpdatePasswordPage />} />
       <Route element={<ProtectedRoute />}>
+        <Route path="/vinh-danh" element={<HonorBoardPage />} />
         <Route element={<AdminRoleRoute />}>
           <Route path="/admin" element={<AdminSchedule />} />
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
           <Route path="/admin/users" element={<UserManagementPage />} />
           <Route path="/admin/sao-do/members" element={<SaoDoMemberManagementPage />} />
           <Route path="/admin/conduct-criteria" element={<ConductConfigPage />} />
+          <Route path="/admin/ranks" element={<RankConfigPage />} />
           <Route path="/admin/score-records" element={<ScoreRecordsPage />} />
           <Route path="/admin/reports" element={<AdminReportsPage />} />
           <Route path="/admin/departments" element={<DepartmentManagementPage />} />

@@ -110,6 +110,19 @@ export default function SidebarNav({ activeKey = 'lich-truc' }) {
           </span>
         </Link>
 
+        <Link to="/admin/ranks" className={rowClass('huy-hieu')}>
+          <span
+            className="material-symbols-outlined text-[22px] shrink-0 mt-0.5 text-amber-500"
+            style={{ fontVariationSettings: "'FILL' 1" }}
+          >
+            military_tech
+          </span>
+          <span className="min-w-0">
+            <span className="font-medium text-sm block leading-snug">Huy hiệu &amp; Vinh danh</span>
+            <span className={hint('huy-hieu')}>Mức rank · công bố BXH tuần</span>
+          </span>
+        </Link>
+
         <div className="pt-1">
           <button
             type="button"

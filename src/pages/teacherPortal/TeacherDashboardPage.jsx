@@ -8,11 +8,17 @@ import { rangeForPreset } from '../adminDashboard/dashboardPresets.js'
 import { subscribeConductClassRecordsByClassId } from '../../lib/conductClassRecordsFirestore.js'
 import { subscribeConductScoreRecordsByClassId } from '../../lib/conductScoreRecordsFirestore.js'
 import { subscribeHomeroomClassesForTeacher } from '../../lib/organizationFirestore.js'
+import { subscribeLatestWeeklyRanking } from '../../lib/weeklyRankingFirestore.js'
+import WeeklyHonorBoard from '../../components/WeeklyHonorBoard.jsx'
+import RankBadge from '../../components/RankBadge.jsx'
 
 export default function TeacherDashboardPage() {
   const { user, profile } = useAuth()
   const uid = user?.id ?? ''
   const name = profile?.full_name?.trim() || 'Thầy/Cô'
+
+  const [weeklyRanking, setWeeklyRanking] = useState(null)
+  useEffect(() => subscribeLatestWeeklyRanking(setWeeklyRanking, () => {}), [])
 
   const [homeroomRaw, setHomeroomRaw] = useState([])
   const [classesHydrated, setClassesHydrated] = useState(false)
@@ -37,6 +43,14 @@ export default function TeacherDashboardPage() {
     () => activeHomeroom.map((c) => c.id).sort().join('\0'),
     [activeHomeroom],
   )
+
+  const homeroomIds = useMemo(() => activeHomeroom.map((c) => c.id), [activeHomeroom])
+
+  /** Huy hiệu lớp CN đạt được trong BXH tuần đã công bố. */
+  const earnedBadges = useMemo(() => {
+    const ids = new Set(homeroomIds)
+    return (weeklyRanking?.entries ?? []).filter((e) => ids.has(e.class_id) && e.rank_name)
+  }, [weeklyRanking, homeroomIds])
 
   useEffect(() => {
     if (!uid) {
@@ -265,6 +279,44 @@ export default function TeacherDashboardPage() {
             </Link>
           ))}
         </div>
+
+        {weeklyRanking ? (
+          <div className="mt-14 pt-10 border-t border-emerald-100/80 dark:border-emerald-900/40">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div>
+                <h2 className="font-headline text-xl font-extrabold text-on-surface flex items-center gap-2">
+                  <span className="material-symbols-outlined text-amber-500" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    trophy
+                  </span>
+                  Vinh danh thi đua tuần
+                </h2>
+                {earnedBadges.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <span className="text-sm text-on-surface-variant">Lớp của bạn đạt:</span>
+                    {earnedBadges.map((e) => (
+                      <span key={e.class_id} className="inline-flex items-center gap-1.5">
+                        <span className="text-sm font-bold text-on-surface">{e.class_code}</span>
+                        <RankBadge name={e.rank_name} icon={e.rank_icon} color={e.rank_color} size="sm" />
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-on-surface-variant mt-1">
+                    Xếp hạng toàn trường tuần này — lớp chủ nhiệm của bạn được tô sáng.
+                  </p>
+                )}
+              </div>
+              <Link
+                to="/vinh-danh"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm font-bold hover:bg-amber-50 dark:hover:bg-amber-950/30 shrink-0"
+              >
+                <span className="material-symbols-outlined text-lg">cast</span>
+                Mở màn hình vinh danh
+              </Link>
+            </div>
+            <WeeklyHonorBoard ranking={weeklyRanking} highlightClassIds={homeroomIds} />
+          </div>
+        ) : null}
 
         {hasHomeroom ? (
           <div className="mt-14 pt-10 border-t border-emerald-100/80 dark:border-emerald-900/40">

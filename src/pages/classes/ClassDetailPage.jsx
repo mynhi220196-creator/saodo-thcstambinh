@@ -14,6 +14,7 @@ import {
 import { subscribeProfiles } from '../../lib/userProfilesFirestore.js'
 import { getConductLogsForClass } from '../scoreRecords/scoreRecordMockData.js'
 import ClassCreateModal from './ClassCreateModal.jsx'
+import ClassQrCodesModal from './ClassQrCodesModal.jsx'
 import ClassDetailBreadcrumb from './ClassDetailBreadcrumb.jsx'
 import ClassDetailConductPanel from './ClassDetailConductPanel.jsx'
 import ClassDetailOverview from './ClassDetailOverview.jsx'
@@ -28,6 +29,7 @@ export default function ClassDetailPage() {
   const [classesRaw, setClassesRaw] = useState([])
   const [loadError, setLoadError] = useState('')
   const [editOpen, setEditOpen] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
 
   useEffect(() => {
     if (!classId) return undefined
@@ -166,6 +168,14 @@ export default function ClassDetailPage() {
           </Link>
           <button
             type="button"
+            onClick={() => setQrOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-on-primary font-bold text-sm hover:opacity-90 transition-opacity"
+          >
+            <span className="material-symbols-outlined text-xl">qr_code_2</span>
+            Mã QR
+          </button>
+          <button
+            type="button"
             onClick={() => setEditOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container-high text-on-surface font-bold text-sm hover:bg-surface-container-highest transition-colors"
           >
@@ -174,6 +184,13 @@ export default function ClassDetailPage() {
           </button>
         </div>
       </div>
+
+      <ClassQrCodesModal
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
+        classMeta={classData}
+        students={students}
+      />
 
       <ClassDetailOverview detail={detail} />
 

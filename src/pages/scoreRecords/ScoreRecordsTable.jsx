@@ -19,6 +19,8 @@ export default function ScoreRecordsTable({
   onFlag,
   onClearAdminFlag,
   onDeleteRecord,
+  onAcceptDispute,
+  onRejectDispute,
   onOpenConductImages,
   actionsDisabled = false,
 }) {
@@ -61,6 +63,8 @@ export default function ScoreRecordsTable({
               onFlag={onFlag}
               onClearAdminFlag={onClearAdminFlag}
               onDeleteRecord={onDeleteRecord}
+              onAcceptDispute={onAcceptDispute}
+              onRejectDispute={onRejectDispute}
               onOpenConductImages={onOpenConductImages}
               actionsDisabled={actionsDisabled}
             />

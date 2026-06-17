@@ -46,6 +46,13 @@ export function mapConductScoreRecordForAdmin(r) {
     location: r.school_year ? `NH ${r.school_year}` : '',
     schoolYear: r.school_year || '',
     image_urls: imageUrlsFromRecord(r),
+    // Khiếu nại (chỉ áp dụng bản ghi cá nhân `score`, không áp dụng bản ghi lớp cũ).
+    canDispute: !legacyClass,
+    disputeStatus: r.dispute_status ?? 'none',
+    disputeReason: r.dispute_reason ?? '',
+    disputedByName: r.disputed_by_name ?? '',
+    disputedAt: r._disputed_ms ? isoFromMs(r._disputed_ms) : '',
+    disputeResolutionNote: r.dispute_resolution_note ?? '',
   }
 }
 

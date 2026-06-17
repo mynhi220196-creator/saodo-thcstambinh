@@ -4,8 +4,12 @@ import { useAuth } from '../../auth/useAuth.js'
 import ConductImageLightbox, { ConductRecordImageStrip } from '../../components/ConductImageLightbox.jsx'
 import { subscribeClassDoc, subscribeStudentsByClassId } from '../../lib/organizationFirestore.js'
 import { subscribeConductClassRecordsByClassId } from '../../lib/conductClassRecordsFirestore.js'
-import { subscribeConductScoreRecordsByClassId } from '../../lib/conductScoreRecordsFirestore.js'
+import {
+  raiseConductDispute,
+  subscribeConductScoreRecordsByClassId,
+} from '../../lib/conductScoreRecordsFirestore.js'
 import DateInputVN from '../../components/DateInputVN.jsx'
+import ConductDisputeModal from './ConductDisputeModal.jsx'
 import { formatDateTimeVN } from '../../lib/dateFormat.js'
 import PortalTablePagination from './PortalTablePagination.jsx'
 
@@ -88,8 +92,13 @@ function normalizeForSearch(s) {
 
 export default function TeacherClassStudentsPage() {
   const { classId } = useParams()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const uid = user?.id ?? ''
+  const disputerName = useMemo(() => {
+    const fn = String(profile?.full_name ?? '').trim()
+    if (fn) return fn
+    return String(user?.displayName ?? user?.email ?? '').trim()
+  }, [profile?.full_name, user?.displayName, user?.email])
 
   const [classData, setClassData] = useState(null)
   const [classLoadDone, setClassLoadDone] = useState(false)
@@ -109,6 +118,32 @@ export default function TeacherClassStudentsPage() {
   const [conductStatsOpen, setConductStatsOpen] = useState(true)
   const [studentSearchQuery, setStudentSearchQuery] = useState('')
   const [conductSearchQuery, setConductSearchQuery] = useState('')
+  /** Khiếu nại (GVCN): bản ghi đang khiếu nại + trạng thái gửi + thông báo. */
+  const [disputeRecord, setDisputeRecord] = useState(null)
+  const [disputeBusy, setDisputeBusy] = useState(false)
+  const [disputeToast, setDisputeToast] = useState('')
+
+  const handleSubmitDispute = useCallback(
+    async (reason) => {
+      if (!disputeRecord) return
+      setDisputeBusy(true)
+      try {
+        await raiseConductDispute(disputeRecord.id, {
+          reason,
+          disputed_by: uid,
+          disputed_by_name: disputerName,
+        })
+        setDisputeRecord(null)
+        setDisputeToast('Đã gửi khiếu nại lên Ban giám hiệu để phân xử.')
+        window.setTimeout(() => setDisputeToast(''), 5000)
+      } catch (e) {
+        window.alert(e?.message ?? 'Không gửi được khiếu nại.')
+      } finally {
+        setDisputeBusy(false)
+      }
+    },
+    [disputeRecord, uid, disputerName],
+  )
 
   const openConductImages = useCallback((urls, startIndex = 0) => {
     const list = Array.isArray(urls) ? urls.map((u) => String(u ?? '').trim()).filter(Boolean) : []
@@ -943,12 +978,13 @@ export default function TeacherClassStudentsPage() {
                           </span>
                         </th>
                         <th className="px-4 py-3 align-middle w-[148px]">Ảnh</th>
+                        <th className="px-4 py-3 align-middle text-center w-[120px]">Khiếu nại</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-outline-variant/10">
                       {conductRowsFiltered.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-4 py-12 text-center text-on-surface-variant">
+                          <td colSpan={7} className="px-4 py-12 text-center text-on-surface-variant">
                             {conductRowsMerged.length === 0
                               ? 'Chưa có bản ghi tác phong cho lớp này.'
                               : 'Không có bản ghi trong khoảng ngày đã chọn.'}
@@ -956,7 +992,7 @@ export default function TeacherClassStudentsPage() {
                         </tr>
                       ) : conductRowsSearchFiltered.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-4 py-12 text-center text-on-surface-variant">
+                          <td colSpan={7} className="px-4 py-12 text-center text-on-surface-variant">
                             Không có bản ghi nào khớp «{conductSearchQuery.trim()}». Thử từ khóa khác hoặc xóa ô tìm kiếm.
                           </td>
                         </tr>
@@ -994,6 +1030,7 @@ export default function TeacherClassStudentsPage() {
                               <td className="px-4 py-3 align-middle">
                                 <ConductRecordImageStrip urls={row.r.image_urls} onOpen={openConductImages} />
                               </td>
+                              <td className="px-4 py-3 align-middle text-center text-on-surface-variant text-xs">—</td>
                             </tr>
                           ) : (
                             <tr key={row.key} className="hover:bg-surface-container-low/40 align-top">
@@ -1024,6 +1061,36 @@ export default function TeacherClassStudentsPage() {
                               <td className="px-4 py-3 align-middle">
                                 <ConductRecordImageStrip urls={row.r.image_urls} onOpen={openConductImages} />
                               </td>
+                              <td className="px-4 py-3 align-middle text-center">
+                                {row.r.type !== 'penalty' ? (
+                                  <span className="text-on-surface-variant text-xs">—</span>
+                                ) : row.r.dispute_status === 'open' ? (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100"
+                                    title={row.r.dispute_reason || ''}
+                                  >
+                                    <span className="material-symbols-outlined text-sm">hourglass_top</span>
+                                    Chờ phân xử
+                                  </span>
+                                ) : row.r.dispute_status === 'rejected' ? (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                    title={row.r.dispute_resolution_note || 'Khiếu nại đã bị bác'}
+                                  >
+                                    <span className="material-symbols-outlined text-sm">gavel</span>
+                                    Đã bác
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDisputeRecord(row.r)}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                                  >
+                                    <span className="material-symbols-outlined text-sm">gavel</span>
+                                    Khiếu nại
+                                  </button>
+                                )}
+                              </td>
                             </tr>
                           ),
                         )
@@ -1045,6 +1112,20 @@ export default function TeacherClassStudentsPage() {
           )}
         </div>
       ) : null}
+
+      {disputeToast ? (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl bg-amber-600 text-white text-sm font-bold shadow-lg">
+          {disputeToast}
+        </div>
+      ) : null}
+
+      <ConductDisputeModal
+        open={disputeRecord != null}
+        onClose={() => setDisputeRecord(null)}
+        record={disputeRecord}
+        onSubmit={handleSubmitDispute}
+        busy={disputeBusy}
+      />
 
       <ConductImageLightbox
         open={imgLightbox.open}

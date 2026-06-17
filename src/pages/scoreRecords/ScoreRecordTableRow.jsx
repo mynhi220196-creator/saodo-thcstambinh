@@ -30,12 +30,16 @@ export default function ScoreRecordTableRow({
   onFlag,
   onClearAdminFlag,
   onDeleteRecord,
+  onAcceptDispute,
+  onRejectDispute,
   onOpenConductImages,
   actionsDisabled = false,
 }) {
   const st = STATUS[record.status] ?? STATUS.pending
   const isReward = record.type === 'reward'
   const actionId = record.rowKey ?? record.id
+  const disputeOpen = record.disputeStatus === 'open'
+  const disputeRejected = record.disputeStatus === 'rejected'
 
   return (
     <tr className="hover:bg-surface-container-low/40 transition-colors align-top">
@@ -97,9 +101,52 @@ export default function ScoreRecordTableRow({
             {formatWhen(record.adminFlaggedAt)}
           </p>
         ) : null}
+        {disputeOpen ? (
+          <div className="mt-2 max-w-[13rem] rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 px-2 py-1.5">
+            <p className="inline-flex items-center gap-1 text-[11px] font-extrabold text-amber-800 dark:text-amber-200">
+              <span className="material-symbols-outlined text-sm">gavel</span>
+              GVCN khiếu nại
+            </p>
+            {record.disputedByName ? (
+              <p className="text-[10px] text-on-surface-variant mt-0.5">bởi {record.disputedByName}</p>
+            ) : null}
+            {record.disputeReason ? (
+              <p className="text-[11px] text-on-surface mt-1 leading-snug whitespace-normal">
+                “{record.disputeReason}”
+              </p>
+            ) : null}
+          </div>
+        ) : disputeRejected ? (
+          <p className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-on-surface-variant">
+            <span className="material-symbols-outlined text-sm">gavel</span>
+            Khiếu nại đã bác
+          </p>
+        ) : null}
       </td>
       <td className="px-5 py-4 text-right">
         <div className="inline-flex flex-col sm:flex-row gap-1 justify-end">
+          {disputeOpen ? (
+            <>
+              <button
+                type="button"
+                disabled={actionsDisabled}
+                onClick={() => onAcceptDispute?.(actionId)}
+                title="Chấp nhận khiếu nại: xóa điểm trừ"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                Chấp nhận (xóa điểm)
+              </button>
+              <button
+                type="button"
+                disabled={actionsDisabled}
+                onClick={() => onRejectDispute?.(actionId)}
+                title="Bác khiếu nại: giữ nguyên điểm"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-surface-container-high text-on-surface hover:bg-surface-container-highest disabled:opacity-50"
+              >
+                Bác (giữ điểm)
+              </button>
+            </>
+          ) : null}
           {record.status === 'pending' ? (
             <>
               <button
