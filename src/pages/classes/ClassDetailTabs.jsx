@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { formatDateTimeVN } from '../../lib/dateFormat.js'
 import { sourceLabel } from '../scoreRecords/scoreRecordMockData.js'
 import ClassDetailPagination from './ClassDetailPagination.jsx'
+import StudentQrModal from '../students/StudentQrModal.jsx'
 
 const STUDENT_PAGE_SIZE = 10
 const CONDUCT_PAGE_SIZE = 6
@@ -48,6 +49,7 @@ export default function ClassDetailTabs({ roster, conductLogs }) {
   const [studentPage, setStudentPage] = useState(1)
   const [conductPage, setConductPage] = useState(1)
   const [searchQuery, setSearchQuery] = useState('')
+  const [qrStudent, setQrStudent] = useState(null)
 
   const filteredRoster = useMemo(() => {
     const q = normalizeForSearch(searchQuery)
@@ -207,6 +209,9 @@ export default function ClassDetailTabs({ roster, conductLogs }) {
                   <th className="px-5 py-3 text-[11px] font-extrabold text-on-surface-variant uppercase tracking-wider text-right">
                     ĐTB tác phong
                   </th>
+                  <th className="px-5 py-3 text-[11px] font-extrabold text-on-surface-variant uppercase tracking-wider text-center">
+                    QR
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/10">
@@ -222,6 +227,27 @@ export default function ClassDetailTabs({ roster, conductLogs }) {
                     <td className="px-5 py-3 text-sm text-on-surface-variant">{s.gender}</td>
                     <td className="px-5 py-3 text-sm font-bold tabular-nums text-right text-on-surface">
                       {s.conductAvg}
+                    </td>
+                    <td className="px-5 py-3 text-center">
+                      {s.id ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setQrStudent({
+                              id: s.id,
+                              code: s.studentCode,
+                              name: s.fullName,
+                              className: s.classCode,
+                            })
+                          }
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-on-surface-variant hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                          title="Xem & in mã QR"
+                        >
+                          <span className="material-symbols-outlined text-xl">qr_code_2</span>
+                        </button>
+                      ) : (
+                        <span className="text-xs text-on-surface-variant">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -320,6 +346,8 @@ export default function ClassDetailTabs({ roster, conductLogs }) {
           />
         </div>
       )}
+
+      <StudentQrModal open={qrStudent != null} onClose={() => setQrStudent(null)} student={qrStudent} />
     </section>
   )
 }

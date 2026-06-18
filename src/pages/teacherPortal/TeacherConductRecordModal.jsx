@@ -6,6 +6,7 @@ import {
 } from '../../lib/cloudinaryUpload.js'
 import { addConductClassRecord } from '../../lib/conductClassRecordsFirestore.js'
 import { addConductScoreRecord } from '../../lib/conductScoreRecordsFirestore.js'
+import { notifyConductRecorded } from '../../lib/notificationsFirestore.js'
 
 const MAX_EVIDENCE_PHOTOS = 5
 
@@ -168,6 +169,19 @@ export default function TeacherConductRecordModal({
           recorded_by_name: teacherName ?? '',
           image_urls: evidenceUrls,
         })
+        // Báo GVCN của lớp khi ghi nhận lỗi (điểm trừ). Bỏ qua nếu người ghi chính là GVCN.
+        if (selected.type === 'penalty' && classMeta?.homeroom_teacher_id) {
+          notifyConductRecorded({
+            homeroomTeacherId: classMeta.homeroom_teacher_id,
+            classId: classMeta.id,
+            classCode: classMeta.code ?? '',
+            studentName: student?.full_name ?? '',
+            criterionName: selected.name ?? '',
+            points: selected.points,
+            createdBy: teacherUid,
+            createdByName: teacherName ?? '',
+          }).catch(() => {})
+        }
         onRecorded?.({ mode: 'individual' })
       }
       onClose()

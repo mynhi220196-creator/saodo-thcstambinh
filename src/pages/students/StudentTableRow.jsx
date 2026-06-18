@@ -13,7 +13,7 @@ const STATUS_STYLES = {
   },
 }
 
-export default function StudentTableRow({ student, onEdit, onSoftDelete }) {
+export default function StudentTableRow({ student, onEdit, onSoftDelete, onShowQr }) {
   const st = STATUS_STYLES[student.status] ?? STATUS_STYLES.active
 
   return (
@@ -49,6 +49,14 @@ export default function StudentTableRow({ student, onEdit, onSoftDelete }) {
       </td>
       <td className="px-6 py-4 text-right">
         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            type="button"
+            onClick={() => onShowQr?.(student)}
+            className="p-2 text-on-surface-variant hover:bg-amber-50 hover:text-amber-600 rounded-lg transition-all"
+            title="Xem & in mã QR"
+          >
+            <span className="material-symbols-outlined text-xl">qr_code_2</span>
+          </button>
           <button
             type="button"
             onClick={() => onEdit?.(student)}

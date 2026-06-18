@@ -50,6 +50,7 @@ export function mapConductScoreRecordForAdmin(r) {
     canDispute: !legacyClass,
     disputeStatus: r.dispute_status ?? 'none',
     disputeReason: r.dispute_reason ?? '',
+    disputedBy: r.disputed_by ?? '',
     disputedByName: r.disputed_by_name ?? '',
     disputedAt: r._disputed_ms ? isoFromMs(r._disputed_ms) : '',
     disputeResolutionNote: r.dispute_resolution_note ?? '',

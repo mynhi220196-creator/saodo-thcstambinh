@@ -13,6 +13,7 @@ import {
   subscribeAllConductScoreRecords,
 } from '../../lib/conductScoreRecordsFirestore.js'
 import { useAuth } from '../../auth/useAuth.js'
+import { notifyDisputeResolved } from '../../lib/notificationsFirestore.js'
 import {
   mapConductClassRecordForAdmin,
   mapConductScoreRecordForAdmin,
@@ -43,7 +44,7 @@ function parseConductRowKey(rowKey) {
 }
 
 export default function ScoreRecordsPage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [scoreRaw, setScoreRaw] = useState([])
   const [classRaw, setClassRaw] = useState([])
   const [classesRaw, setClassesRaw] = useState([])
@@ -294,10 +295,21 @@ export default function ScoreRecordsPage() {
       const p = parseConductRowKey(rowKey)
       if (!p || p.kind !== 'score') return
       if (!window.confirm('Chấp nhận khiếu nại và XÓA điểm trừ này? Thao tác không thể hoàn tác.')) return
+      const row = mergedBase.find((r) => r.rowKey === rowKey)
       setAdminActionBusy(true)
       setActionBanner({ kind: '', message: '' })
       try {
         await deleteConductScoreRecord(p.id)
+        if (row?.disputedBy) {
+          notifyDisputeResolved({
+            recipientUid: row.disputedBy,
+            classCode: row.classCode,
+            studentName: row.studentName,
+            outcome: 'accepted',
+            createdBy: user?.id ?? '',
+            createdByName: profile?.full_name?.trim() || user?.email || '',
+          }).catch(() => {})
+        }
         showBanner('ok', 'Đã chấp nhận khiếu nại và xóa điểm trừ.')
       } catch (e) {
         showBanner('err', e?.message ?? 'Không xử lý được. Kiểm tra quyền ADMIN và rules.')
@@ -305,7 +317,7 @@ export default function ScoreRecordsPage() {
         setAdminActionBusy(false)
       }
     },
-    [showBanner],
+    [showBanner, mergedBase, user, profile],
   )
 
   /** Phân xử khiếu nại — BÁC: giữ nguyên điểm, đánh dấu đã xử lý. */
@@ -314,6 +326,7 @@ export default function ScoreRecordsPage() {
       const p = parseConductRowKey(rowKey)
       if (!p || p.kind !== 'score') return
       const note = window.prompt('Bác khiếu nại — ghi chú lý do (tuỳ chọn):', '') ?? ''
+      const row = mergedBase.find((r) => r.rowKey === rowKey)
       setAdminActionBusy(true)
       setActionBanner({ kind: '', message: '' })
       try {
@@ -321,6 +334,16 @@ export default function ScoreRecordsPage() {
           resolved_by: user?.id ?? '',
           note,
         })
+        if (row?.disputedBy) {
+          notifyDisputeResolved({
+            recipientUid: row.disputedBy,
+            classCode: row.classCode,
+            studentName: row.studentName,
+            outcome: 'rejected',
+            createdBy: user?.id ?? '',
+            createdByName: profile?.full_name?.trim() || user?.email || '',
+          }).catch(() => {})
+        }
         showBanner('ok', 'Đã bác khiếu nại, giữ nguyên điểm.')
       } catch (e) {
         showBanner('err', e?.message ?? 'Không xử lý được. Kiểm tra quyền ADMIN và rules.')
@@ -328,7 +351,7 @@ export default function ScoreRecordsPage() {
         setAdminActionBusy(false)
       }
     },
-    [showBanner, user?.id],
+    [showBanner, mergedBase, user, profile],
   )
 
   return (

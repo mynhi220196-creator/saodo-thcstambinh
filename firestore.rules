@@ -250,6 +250,36 @@ service cloud.firestore {
         );
     }
 
+    /**
+     * Thông báo trong app. Người nhận = recipient_uid (cá nhân) hoặc recipient_role='ADMIN' (mọi admin).
+     * Tạo: bất kỳ nhân sự nào (ghi lỗi→GVCN, khiếu nại→Admin, xử lý→GVCN), phải tự đặt created_by.
+     * Sửa: chỉ người nhận, chỉ đổi cờ `read`. Xóa: người nhận hoặc admin.
+     */
+    match /notifications/{notifId} {
+      function notifSelf() {
+        return request.auth != null && resource.data.recipient_uid == request.auth.uid;
+      }
+      function notifForAdmin() {
+        return resource.data.recipient_role == 'ADMIN' && isAdmin();
+      }
+      allow read: if notifSelf() || notifForAdmin();
+      allow create: if canRecordConduct()
+        && request.resource.data.created_by == request.auth.uid
+        && request.resource.data.read == false
+        && request.resource.data.type in ['conduct_recorded', 'dispute_raised', 'dispute_resolved']
+        && request.resource.data.title is string
+        && request.resource.data.title.size() <= 200
+        && request.resource.data.body is string
+        && request.resource.data.body.size() <= 1000
+        && (
+          (request.resource.data.recipient_uid is string && request.resource.data.recipient_uid.size() > 0)
+          || request.resource.data.recipient_role == 'ADMIN'
+        );
+      allow update: if (notifSelf() || notifForAdmin())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isAdmin() || notifSelf();
+    }
+
     /* Mức huy hiệu / rank thi đua (Gamification). Admin cấu hình; toàn bộ nhân sự đọc để hiển thị badge. */
     match /conduct_ranks/{rankId} {
       allow read: if isAdmin() || canRecordConduct();

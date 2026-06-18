@@ -253,8 +253,10 @@ export function buildClassDetailForUi(classData, studentRows, teacherProfile) {
     .filter((s) => !s.is_deleted)
     .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'vi'))
     .map((s) => ({
+      id: s.id,
       studentCode: s.student_code,
       fullName: s.full_name,
+      classCode: classData.code,
       gender: genderLabel(s.gender),
       conductAvg: '—',
     }))

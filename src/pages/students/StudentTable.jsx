@@ -51,7 +51,7 @@ export function sortStudentRowList(list, sortKey, sortDir) {
   return arr
 }
 
-export default function StudentTable({ rows, sortKey, sortDir, onSort, onEdit, onSoftDelete }) {
+export default function StudentTable({ rows, sortKey, sortDir, onSort, onEdit, onSoftDelete, onShowQr }) {
   if (rows.length === 0) {
     return (
       <div className="px-6 py-16 text-center text-on-surface-variant">
@@ -87,7 +87,7 @@ export default function StudentTable({ rows, sortKey, sortDir, onSort, onEdit, o
         </thead>
         <tbody className="divide-y divide-outline-variant/10">
           {rows.map((s) => (
-            <StudentTableRow key={s.id} student={s} onEdit={onEdit} onSoftDelete={onSoftDelete} />
+            <StudentTableRow key={s.id} student={s} onEdit={onEdit} onSoftDelete={onSoftDelete} onShowQr={onShowQr} />
           ))}
         </tbody>
       </table>

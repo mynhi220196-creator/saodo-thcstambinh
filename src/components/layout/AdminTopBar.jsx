@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
 import AvatarDisplay from '../AvatarDisplay.jsx'
+import NotificationBell from '../NotificationBell.jsx'
 
 export default function AdminTopBar({ title, searchPlaceholder }) {
   const navigate = useNavigate()
@@ -34,12 +35,7 @@ export default function AdminTopBar({ title, searchPlaceholder }) {
       </div>
       <div className="flex items-center gap-4 shrink-0">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="p-2 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-full transition-all cursor-pointer active:scale-95"
-          >
-            <span className="material-symbols-outlined text-on-surface-variant">notifications</span>
-          </button>
+          <NotificationBell accent="blue" />
           <button
             type="button"
             className="p-2 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-full transition-all cursor-pointer active:scale-95"

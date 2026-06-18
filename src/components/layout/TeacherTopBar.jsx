@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
 import AvatarDisplay from '../AvatarDisplay.jsx'
+import NotificationBell from '../NotificationBell.jsx'
 
 export default function TeacherTopBar({
   title,
@@ -48,7 +49,8 @@ export default function TeacherTopBar({
           />
         </div>
       </div>
-      <div className="flex items-center gap-4 shrink-0">
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        <NotificationBell accent="emerald" />
         <div className="relative" ref={menuRef}>
           <button
             type="button"

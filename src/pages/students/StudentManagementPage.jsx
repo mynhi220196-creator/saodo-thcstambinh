@@ -12,6 +12,7 @@ import {
 } from '../../lib/organizationFirestore.js'
 import StudentCreateModal from './StudentCreateModal.jsx'
 import StudentEditModal from './StudentEditModal.jsx'
+import StudentQrModal from './StudentQrModal.jsx'
 import StudentFabActions from './StudentFabActions.jsx'
 import StudentFilterBar from './StudentFilterBar.jsx'
 import StudentHelpFooter from './StudentHelpFooter.jsx'
@@ -83,6 +84,7 @@ export default function StudentManagementPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [editingStudent, setEditingStudent] = useState(null)
+  const [qrStudent, setQrStudent] = useState(null)
 
   useEffect(() => {
     const u1 = subscribeStudents(
@@ -285,6 +287,7 @@ export default function StudentManagementPage() {
           onSort={onTableSort}
           onEdit={(r) => setEditingStudent(r._raw)}
           onSoftDelete={handleSoftDelete}
+          onShowQr={(r) => setQrStudent(r)}
         />
         <StudentTablePagination
           from={from}
@@ -299,6 +302,8 @@ export default function StudentManagementPage() {
       </div>
       <StudentHelpFooter />
       <StudentFabActions onAdd={() => setCreateOpen(true)} onImport={() => setImportOpen(true)} />
+
+      <StudentQrModal open={qrStudent != null} onClose={() => setQrStudent(null)} student={qrStudent} />
     </AdminShell>
   )
 }

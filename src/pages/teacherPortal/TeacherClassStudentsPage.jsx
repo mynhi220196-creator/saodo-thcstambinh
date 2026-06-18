@@ -8,6 +8,7 @@ import {
   raiseConductDispute,
   subscribeConductScoreRecordsByClassId,
 } from '../../lib/conductScoreRecordsFirestore.js'
+import { notifyDisputeRaised } from '../../lib/notificationsFirestore.js'
 import DateInputVN from '../../components/DateInputVN.jsx'
 import ConductDisputeModal from './ConductDisputeModal.jsx'
 import { formatDateTimeVN } from '../../lib/dateFormat.js'
@@ -133,6 +134,12 @@ export default function TeacherClassStudentsPage() {
           disputed_by: uid,
           disputed_by_name: disputerName,
         })
+        notifyDisputeRaised({
+          classCode: disputeRecord.class_code,
+          studentName: disputeRecord.student_name,
+          createdBy: uid,
+          createdByName: disputerName,
+        }).catch(() => {})
         setDisputeRecord(null)
         setDisputeToast('Đã gửi khiếu nại lên Ban giám hiệu để phân xử.')
         window.setTimeout(() => setDisputeToast(''), 5000)
