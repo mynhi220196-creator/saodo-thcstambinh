@@ -115,8 +115,13 @@ export default function TeacherClassStudentsPage() {
   const [pageStudents, setPageStudents] = useState(1)
   const [pageConduct, setPageConduct] = useState(1)
   const [imgLightbox, setImgLightbox] = useState({ open: false, urls: [], startIndex: 0 })
-  /** `<details defaultOpen>` không ổn định với React — dùng controlled, mặc định mở. */
-  const [conductStatsOpen, setConductStatsOpen] = useState(true)
+  /**
+   * `<details defaultOpen>` không ổn định với React — dùng controlled.
+   * Mặc định MỞ trên màn lớn, THU GỌN trên mobile để danh sách học sinh có chỗ.
+   */
+  const [conductStatsOpen, setConductStatsOpen] = useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches,
+  )
   const [studentSearchQuery, setStudentSearchQuery] = useState('')
   const [conductSearchQuery, setConductSearchQuery] = useState('')
   /** Khiếu nại (GVCN): bản ghi đang khiếu nại + trạng thái gửi + thông báo. */
@@ -450,7 +455,7 @@ export default function TeacherClassStudentsPage() {
   }
 
   return (
-    <div className="w-full min-w-0 flex flex-col h-full">
+    <div className="w-full min-w-0 flex flex-col lg:h-full">
       <nav
         className="flex flex-wrap items-center gap-1 text-sm text-on-surface-variant mb-4 shrink-0"
         aria-label="Breadcrumb"
@@ -497,7 +502,7 @@ export default function TeacherClassStudentsPage() {
       ) : null}
 
       {allowed && classData ? (
-        <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex flex-col lg:flex-1 lg:min-h-0">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between md:gap-4 shrink-0">
             <div className="min-w-0">
               <h1 className="font-headline text-2xl sm:text-3xl font-extrabold text-[#0d5c3f] dark:text-emerald-100">
@@ -610,7 +615,7 @@ export default function TeacherClassStudentsPage() {
           ) : null}
 
           {tab === TAB_STUDENTS ? (
-            <div className="mt-4 flex-1 min-h-0 flex flex-col gap-4 min-h-0">
+            <div className="mt-4 flex flex-col gap-4 lg:flex-1 lg:min-h-0">
               <section
                 className="rounded-2xl border border-outline-variant/15 bg-surface-container-lowest shadow-sm overflow-hidden shrink-0"
                 aria-labelledby="conduct-stats-heading"
@@ -835,7 +840,7 @@ export default function TeacherClassStudentsPage() {
                 </details>
               </section>
 
-              <div className="flex-1 min-h-0 rounded-2xl border border-outline-variant/15 bg-surface-container-lowest shadow-sm overflow-hidden flex flex-col">
+              <div className="lg:flex-1 lg:min-h-0 rounded-2xl border border-outline-variant/15 bg-surface-container-lowest shadow-sm overflow-hidden flex flex-col">
               <div className="px-4 sm:px-5 py-3 border-b border-outline-variant/10 bg-emerald-50/50 dark:bg-emerald-950/20 shrink-0 space-y-3">
                 <div className="flex flex-wrap justify-between items-center gap-2">
                   <span className="text-sm font-extrabold text-on-surface-variant uppercase tracking-wide">Danh sách</span>
@@ -862,20 +867,14 @@ export default function TeacherClassStudentsPage() {
                   />
                 </div>
               </div>
-              <div className="overflow-x-auto flex-1 min-h-0">
-                <table className="w-full min-w-[720px] table-fixed text-sm border-collapse">
-                  <colgroup>
-                    <col className="w-[8%]" />
-                    <col className="w-[18%]" />
-                    <col className="w-[54%]" />
-                    <col className="w-[20%]" />
-                  </colgroup>
-                  <thead>
-                    <tr className="text-left text-xs font-extrabold uppercase tracking-wide text-on-surface-variant bg-emerald-50/80 dark:bg-emerald-950/40 border-b border-outline-variant/10">
-                      <th className="px-4 py-3.5 align-middle text-center">STT</th>
-                      <th className="px-4 py-3.5 align-middle">Mã HS</th>
-                      <th className="px-4 py-3.5 align-middle">Họ tên</th>
-                      <th className="px-4 py-3.5 align-middle text-center">Khối</th>
+              <div className="overflow-x-auto lg:flex-1 lg:min-h-0 lg:overflow-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="text-left text-[11px] sm:text-xs font-extrabold uppercase tracking-wide text-on-surface-variant bg-emerald-50 dark:bg-emerald-950/60 border-b border-outline-variant/10">
+                      <th className="px-2 sm:px-4 py-2.5 align-middle text-center w-10">#</th>
+                      <th className="px-2 sm:px-4 py-2.5 align-middle">Mã HS</th>
+                      <th className="px-2 sm:px-4 py-2.5 align-middle">Họ tên</th>
+                      <th className="hidden sm:table-cell px-4 py-2.5 align-middle text-center">Khối</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -897,16 +896,19 @@ export default function TeacherClassStudentsPage() {
                           key={s.id}
                           className="border-b border-outline-variant/5 last:border-0 hover:bg-surface-container-low/50"
                         >
-                          <td className="px-4 py-3 align-middle text-center text-on-surface-variant font-medium">
+                          <td className="px-2 sm:px-4 py-2 align-middle text-center text-on-surface-variant font-medium tabular-nums">
                             {studentSliceStart + i + 1}
                           </td>
-                          <td className="px-4 py-3 align-middle font-mono text-xs truncate" title={s.student_code ?? ''}>
+                          <td className="px-2 sm:px-4 py-2 align-middle font-mono text-xs whitespace-nowrap" title={s.student_code ?? ''}>
                             {s.student_code ?? '—'}
                           </td>
-                          <td className="px-4 py-3 align-middle font-semibold truncate" title={s.full_name ?? ''}>
-                            {s.full_name ?? '—'}
+                          <td className="px-2 sm:px-4 py-2 align-middle font-semibold" title={s.full_name ?? ''}>
+                            <span className="block">{s.full_name ?? '—'}</span>
+                            {s.grade != null ? (
+                              <span className="sm:hidden text-[11px] font-normal text-on-surface-variant">Khối {s.grade}</span>
+                            ) : null}
                           </td>
-                          <td className="px-4 py-3 align-middle text-center text-on-surface-variant">
+                          <td className="hidden sm:table-cell px-4 py-2 align-middle text-center text-on-surface-variant">
                             {s.grade != null ? `Khối ${s.grade}` : '—'}
                           </td>
                         </tr>
